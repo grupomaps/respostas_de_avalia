@@ -8,6 +8,7 @@ import { Avaliacoes } from './pages/Avaliacoes';
 import { Logs } from './pages/Logs';
 import { Configuracoes } from './pages/Configuracoes';
 import { ChangePassword } from './components/auth/ChangePassword';
+import AuthGoogleCallback from './pages/AuthGoogleCallback';
 
 function AppContent() {
   const { user, loading } = useAuth();
@@ -19,6 +20,9 @@ function AppContent() {
         <div className="text-slate-600 text-lg">Carregando...</div>
       </div>
     );
+  }
+  if (window.location.pathname === "/auth/google/callback") {
+    return <AuthGoogleCallback />;
   }
   if (!user) {
     return <AuthContainer />;
