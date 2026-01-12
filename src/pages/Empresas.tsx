@@ -121,7 +121,7 @@ export function Empresas() {
   const rootUrl = 'https://accounts.google.com/o/oauth2/v2/auth';
   
   const options = {
-    redirect_uri: "https://respostas-de-avalia-j36k.bolt.host/auth/google/callback",
+    redirect_uri: "https://respostas-de-avalia.vercel.app/auth/google/callback",
     client_id: import.meta.env.VITE_GOOGLE_CLIENT_ID,
     access_type: 'offline', 
     response_type: 'code',
