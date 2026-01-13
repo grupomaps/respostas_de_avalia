@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { useState, useEffect } from 'react';
 import { supabase, Avaliacao, Empresa } from '../lib/supabase';
 import { Star, CheckCircle, XCircle, MessageSquare, AlertCircle, Sparkles, Send, Edit3, X } from 'lucide-react';
@@ -15,46 +16,57 @@ export function Avaliacoes() {
   const [editandoResposta, setEditandoResposta] = useState(false);
 
   useEffect(() => {
-    loadData();
+    loadEmpresas();
   }, []);
-
-  const loadData = async () => {
-    try {
-      const [avaliacoesData, empresasData] = await Promise.all([
-        supabase
-          .from('avaliacoes')
-          .select('*')
-          .order('created_at', { ascending: false }),
-        supabase
-          .from('empresas')
-          .select('*')
-          .order('nome'),
-      ]);
-
-      if (avaliacoesData.error) throw avaliacoesData.error;
-      if (empresasData.error) throw empresasData.error;
-
-      const empresasMap = new Map(empresasData.data?.map(e => [e.id, e]) || []);
-      const avaliacoesWithEmpresa = (avaliacoesData.data || []).map(av => ({
-        ...av,
-        empresa: empresasMap.get(av.empresa_id),
-      }));
-
-      setAvaliacoes(avaliacoesWithEmpresa);
-      setEmpresas(empresasData.data || []);
-    } catch (error) {
-      console.error('Error loading data:', error);
-      showMessage('error', 'Erro ao carregar avaliações');
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const showMessage = (type: 'success' | 'error', text: string) => {
     setMessage({ type, text });
     setTimeout(() => setMessage(null), 5000);
   };
 
+  // ✅ Carrega empresas com Google conectado
+ const loadEmpresas = async () => {
+  setLoading(true);
+  try {
+    const { data: empresasData, error } = await supabase.from('empresas').select('*');
+    if (error) throw error;
+    setEmpresas(empresasData || []);
+
+    const { data: avaliacoesData, error: errorAvaliacao } = await supabase
+      .from('avaliacoes')
+      .select('*')
+      .order('created_at', { ascending: false });
+
+    if (errorAvaliacao) throw errorAvaliacao;
+    setAvaliacoes(avaliacoesData || []);
+  } catch (err: any) {
+    console.error('Erro ao carregar dados:', err);
+    showMessage('error', err.message || 'Erro ao carregar dados');
+  } finally {
+    setLoading(false);
+  }
+};
+  // ✅ Busca avaliações diretamente do Google usando access_token
+ 
+const sincronizarAvaliacoes = async () => {
+  setLoading(true);
+  try {
+    console.log('[DEBUG] Chamando Edge Function via Supabase client...');
+    const { data, error } = await supabase.functions.invoke('sync-google-reviews', {
+      method: 'POST',
+    });
+    if (error) throw error;
+    console.log('Avaliações sincronizadas:', data);
+    showMessage('success', 'Avaliações sincronizadas com sucesso!');
+  } catch (err: any) {
+    console.error('[DEBUG] Erro ao sincronizar avaliações:', err);
+    showMessage('error', err.message || 'Erro ao sincronizar avaliações');
+  } finally {
+    setLoading(false);
+  }
+};
+
+  // ✅ Funções existentes para IA, publicar resposta, cancelar
   const gerarRespostaIA = async (avaliacao: Avaliacao & { empresa?: Empresa }) => {
     if (!avaliacao.empresa?.automacao_ativa) {
       showMessage('error', 'Automação desativada para esta empresa');
@@ -124,7 +136,7 @@ export function Avaliacoes() {
       showMessage('success', 'Resposta publicada com sucesso!');
       setRespondendoId(null);
       setRespostaPreview('');
-      loadData();
+      loadEmpresas(); // recarrega
     } catch (error: any) {
       console.error('Error publishing response:', error);
       showMessage('error', error.message || 'Erro ao publicar resposta');
@@ -137,36 +149,28 @@ export function Avaliacoes() {
     setEditandoResposta(false);
   };
 
+  // ✅ Filtra avaliações pendentes/respondidas
   const filteredAvaliacoes = avaliacoes.filter(av => {
     const matchEmpresa = selectedEmpresa === 'all' || av.empresa_id === selectedEmpresa;
-    const matchStatus = selectedStatus === 'all' ||
+    const matchStatus =
+      selectedStatus === 'all' ||
       (selectedStatus === 'respondida' && av.respondida) ||
       (selectedStatus === 'pendente' && !av.respondida);
     return matchEmpresa && matchStatus;
   });
 
-  const renderStars = (rating: number) => {
-    return (
-      <div className="flex gap-0.5">
-        {[1, 2, 3, 4, 5].map((star) => (
-          <Star
-            key={star}
-            className={`w-4 h-4 ${
-              star <= rating ? 'fill-yellow-400 text-yellow-400' : 'text-slate-300'
-            }`}
-          />
-        ))}
-      </div>
-    );
-  };
+  const renderStars = (rating: number) => (
+    <div className="flex gap-0.5">
+      {[1, 2, 3, 4, 5].map((star) => (
+        <Star
+          key={star}
+          className={`w-4 h-4 ${star <= rating ? 'fill-yellow-400 text-yellow-400' : 'text-slate-300'}`}
+        />
+      ))}
+    </div>
+  );
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <div className="text-slate-600">Carregando...</div>
-      </div>
-    );
-  }
+  if (loading) return <div className="flex items-center justify-center h-64"><div className="text-slate-600">Carregando...</div></div>;
 
   return (
     <div className="space-y-6">
@@ -186,7 +190,13 @@ export function Avaliacoes() {
           </p>
         </div>
       )}
-
+<button
+  onClick={sincronizarAvaliacoes}
+  disabled={loading}
+  className="bg-blue-500 text-white px-4 py-2 rounded"
+>
+  {loading ? 'Sincronizando...' : 'Sincronizar avaliações'}
+</button>
       <div className="flex flex-col sm:flex-row gap-4">
         <div className="flex-1">
           <label className="block text-sm font-medium text-slate-700 mb-2">
@@ -205,7 +215,6 @@ export function Avaliacoes() {
             ))}
           </select>
         </div>
-
         <div className="flex-1">
           <label className="block text-sm font-medium text-slate-700 mb-2">
             Filtrar por Status
@@ -228,6 +237,8 @@ export function Avaliacoes() {
             Avaliações ({filteredAvaliacoes.length})
           </h2>
         </div>
+
+        
 
         <div className="divide-y divide-slate-200">
           {filteredAvaliacoes.length === 0 ? (

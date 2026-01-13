@@ -10,31 +10,47 @@ export default function AuthGoogleCallback() {
       console.log("URL atual:", window.location.href);
 
       const params = new URLSearchParams(window.location.search);
-      const code = params.get("code");
-      const empresaId = params.get("state");
+const code = params.get("code");
+const empresaId = params.get("state");
 
-      console.log("Authorization code:", code);
-      console.log("Empresa ID (state):", empresaId);
-      console.log("Tipo do empresaId:", typeof empresaId);
+if (!code || !empresaId) return;
 
-      if (!code || !empresaId) {
-        console.error("❌ Callback inválido — code ou state ausente");
-        console.groupEnd();
-        window.location.href = "/empresas?google=error";
-        return;
-      }
+// 1️⃣ Trocar authorization code por tokens
+const body = new URLSearchParams({
+  code,
+  client_id: import.meta.env.VITE_GOOGLE_CLIENT_ID,
+  client_secret: import.meta.env.VITE_GOOGLE_CLIENT_SECRET,
+  redirect_uri: "http://localhost:5173/auth/google/callback",
+      // redirect_uri: "https://respostas-de-avalia.vercel.app/auth/google/callback",
+  grant_type: "authorization_code",
+});
 
-      // 🔍 Teste de conexão com Supabase
-      console.log("🔄 Tentando atualizar google_conectado...");
+console.log("Authorization code:", code);
+console.log("Body enviado para o token endpoint:", body.toString());
 
-      const { data, error } = await supabase
-        .from("empresas")
-        .update({ google_conectado: true })
-        .eq("id", empresaId)
-        .select(); // 👈 força retorno para debug
+const tokenRes = await fetch("https://oauth2.googleapis.com/token", {
+  method: "POST",
+  headers: { "Content-Type": "application/x-www-form-urlencoded" },
+  body: body.toString(),
+});
 
-      console.log("Resposta Supabase (data):", data);
-      console.log("Resposta Supabase (error):", error);
+const tokenData = await tokenRes.json();
+console.log("Resposta do Google:", tokenData);
+
+// 2️⃣ Salvar no Supabase
+const { access_token, refresh_token } = tokenData;
+
+const { data, error } = await supabase
+  .from("empresas")
+  .update({ 
+    google_conectado: true,
+    access_token,
+    refresh_token,
+  })
+  .eq("id", empresaId)
+  .select();
+
+console.log("Supabase update:", { data, error });
 
       if (error) {
         console.error("❌ Erro ao atualizar empresa:", error);

@@ -138,14 +138,13 @@ export function Empresas() {
     }
   };
 
-  console.log(empresas);
 
   const conectarGoogle = async (empresa: Empresa) => {
     const rootUrl = "https://accounts.google.com/o/oauth2/v2/auth";
 
     const options = {
-      // redirect_uri: "http://localhost:5173/auth/google/callback",
-      redirect_uri: "https://respostas-de-avalia.vercel.app/auth/google/callback",
+      redirect_uri: "http://localhost:5173/auth/google/callback",
+      // redirect_uri: "https://respostas-de-avalia.vercel.app/auth/google/callback",
       client_id: import.meta.env.VITE_GOOGLE_CLIENT_ID,
       access_type: "offline",
       response_type: "code",
